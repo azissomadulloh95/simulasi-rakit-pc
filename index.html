@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Simulasi Perakitan Komputer 3D – SMKN 1 Sukabumi</title>
+  <meta name="description" content="Simulasi perakitan komputer 3D interaktif untuk siswa SMK jurusan TJKT (Dasar TJKT).">
+  <meta name="theme-color" content="#0f172a">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='6' y='10' width='52' height='34' rx='4' fill='%230f172a'/%3E%3Crect x='11' y='15' width='42' height='24' fill='%2338bdf8'/%3E%3Crect x='24' y='46' width='16' height='6' fill='%230f172a'/%3E%3Crect x='16' y='52' width='32' height='4' rx='2' fill='%230f172a'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <header class="app-header">
+    <button class="brand" data-nav="home" aria-label="Beranda">
+      <span class="brand-icon" aria-hidden="true">🖥️</span>
+      <span class="brand-text">Simulasi Perakitan Komputer – SMKN 1 Sukabumi</span>
+    </button>
+    <nav class="top-nav">
+      <button data-nav="home">Beranda</button>
+      <button data-nav="explore">Kenali Komponen</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- ====================== BERANDA ====================== -->
+    <section id="view-home" class="view active" aria-label="Beranda">
+      <div class="home">
+        <div class="hero">
+          <p class="eyebrow">Dasar TJKT • Kelas X</p>
+          <h1>Rakit Komputer dalam 3D</h1>
+          <p>Pasang komponen satu per satu ke dalam casing, sambungkan kabel daya, lalu nyalakan komputer untuk uji <b>POST</b>. Putar dan perbesar model 3D dengan jari atau mouse.</p>
+        </div>
+
+        <div class="mode-grid">
+          <article class="mode-card learn">
+            <div class="mode-icon" aria-hidden="true">📘</div>
+            <h2>Mode Belajar</h2>
+            <ul>
+              <li>Slot tujuan menyala sebagai petunjuk</li>
+              <li>Penjelasan lengkap & tips K3 tiap komponen</li>
+              <li>Tanpa batas waktu</li>
+            </ul>
+            <button class="btn btn-primary btn-lg" id="btnLearn">Mulai Belajar</button>
+          </article>
+
+          <article class="mode-card exam">
+            <div class="mode-icon" aria-hidden="true">📝</div>
+            <h2>Mode Ujian</h2>
+            <ul>
+              <li>Tanpa petunjuk, urutan harus diingat</li>
+              <li>Waktu 15 menit, skor akhir</li>
+              <li>Hasil bisa disimpan sebagai gambar / teks</li>
+            </ul>
+            <form id="examForm" class="exam-form" autocomplete="on">
+              <label>Nama lengkap
+                <input id="inpNama" name="nama" required maxlength="40" placeholder="Contoh: Siti Aisyah">
+              </label>
+              <label>Kelas
+                <input id="inpKelas" name="kelas" required maxlength="20" placeholder="Contoh: X TJKT 2">
+              </label>
+              <button class="btn btn-exam btn-lg" type="submit">Mulai Ujian</button>
+            </form>
+          </article>
+
+          <article class="mode-card explore">
+            <div class="mode-icon" aria-hidden="true">🔍</div>
+            <h2>Kenali Komponen</h2>
+            <ul>
+              <li>Lihat tiap komponen dalam 3D</li>
+              <li>Putar & perbesar sesukamu</li>
+              <li>Fungsi, ciri-ciri, dan tips K3</li>
+            </ul>
+            <button class="btn btn-secondary btn-lg" data-nav="explore">Buka Galeri 3D</button>
+          </article>
+        </div>
+
+        <aside class="k3-box">
+          <h3>⚠️ Ingat K3 sebelum merakit!</h3>
+          <ul>
+            <li>Matikan saklar PSU dan <b>cabut kabel listrik</b>.</li>
+            <li>Gunakan <b>gelang antistatis</b> (atau sentuh logam casing) untuk membuang listrik statis.</li>
+            <li>Bekerja di meja yang kering, rapi, dan terang. Simpan sekrup di wadah.</li>
+            <li>Pegang komponen di bagian tepinya, jangan menyentuh pin atau chip.</li>
+          </ul>
+        </aside>
+
+        <section class="howto">
+          <h3>Cara bermain</h3>
+          <ol>
+            <li>Pilih komponen dari daftar (ketuk sekali), lalu ketuk lokasi tujuannya pada model 3D. Di laptop, komponen juga bisa <b>diseret</b> ke model.</li>
+            <li>Geser 1 jari / klik-kiri untuk memutar kamera, cubit / scroll untuk zoom, geser 2 jari / klik-kanan untuk menggeser.</li>
+            <li>Salah slot atau melompati urutan akan mengurangi skor 5 poin.</li>
+          </ol>
+        </section>
+      </div>
+    </section>
+
+    <!-- ====================== SIMULASI ====================== -->
+    <section id="view-sim" class="view" aria-label="Simulasi perakitan">
+      <div class="sim-layout">
+        <div class="viewport" id="simViewport">
+          <div class="vp-banner" id="stepBanner" aria-live="polite">
+            <span class="banner-step" id="bannerStep">Langkah 1/9</span>
+            <span class="banner-title" id="bannerTitle">Memuat…</span>
+            <span class="banner-hint" id="bannerHint"></span>
+          </div>
+          <div class="vp-tools">
+            <button class="tool" id="btnResetCam" title="Reset Kamera">🎥 <span>Reset Kamera</span></button>
+            <button class="tool" id="btnLabels" aria-pressed="false" title="Tampilkan label motherboard">🏷️ <span>Label</span></button>
+            <button class="tool" id="btnHints" aria-pressed="true" title="Petunjuk">💡 <span>Petunjuk</span></button>
+          </div>
+          <div class="info-card hidden" id="infoCard" role="dialog" aria-live="polite"></div>
+          <div class="toast-wrap" id="toastWrap" aria-live="assertive"></div>
+          <div class="loading" id="loading">Memuat model 3D…</div>
+        </div>
+
+        <aside class="panel" id="simPanel">
+          <div class="stats">
+            <div class="stat"><span class="stat-label">Mode</span><span class="stat-val" id="statMode">Belajar</span></div>
+            <div class="stat"><span class="stat-label">Skor</span><span class="stat-val" id="statScore">100</span></div>
+            <div class="stat"><span class="stat-label">Salah</span><span class="stat-val" id="statMistakes">0</span></div>
+            <div class="stat"><span class="stat-label" id="timerLabel">Waktu</span><span class="stat-val" id="statTime">00:00</span></div>
+          </div>
+          <div class="progress" aria-label="Kemajuan"><div class="progress-bar" id="progressBar"></div><span id="progressText">0/15 tugas</span></div>
+
+          <details class="steps-box" id="stepsBox" open>
+            <summary>Urutan Perakitan</summary>
+            <ol class="step-list" id="stepList"></ol>
+          </details>
+
+          <h3 class="tray-title">Komponen <small id="trayHint">ketuk untuk memilih</small></h3>
+          <div class="tray" id="tray" role="listbox" aria-label="Daftar komponen"></div>
+
+          <div class="panel-actions">
+            <button class="btn btn-ghost" id="btnRestart">↺ Ulangi</button>
+            <button class="btn btn-ghost" id="btnStop">⏹ Selesai</button>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ====================== KENALI KOMPONEN ====================== -->
+    <section id="view-explore" class="view" aria-label="Kenali komponen">
+      <div class="sim-layout">
+        <div class="viewport" id="exploreViewport">
+          <div class="vp-tools">
+            <button class="tool" id="btnExReset">🎥 <span>Reset Kamera</span></button>
+            <button class="tool" id="btnExRotate" aria-pressed="true">🔄 <span>Putar Otomatis</span></button>
+          </div>
+          <div class="ex-nav">
+            <button class="btn btn-round" id="btnExPrev" aria-label="Komponen sebelumnya">‹</button>
+            <span id="exCounter">1/16</span>
+            <button class="btn btn-round" id="btnExNext" aria-label="Komponen berikutnya">›</button>
+          </div>
+        </div>
+        <aside class="panel explore-panel">
+          <div class="chip-list" id="exChips"></div>
+          <article class="ex-info" id="exInfo"></article>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <footer class="app-footer">Dibuat oleh Azis – Dasar TJKT</footer>
+
+  <!-- ====================== MODAL: ORIENTASI CPU ====================== -->
+  <div class="modal hidden" id="cpuModal" role="dialog" aria-modal="true" aria-labelledby="cpuTitle">
+    <div class="modal-box">
+      <h2 id="cpuTitle">Perhatikan tanda segitiga!</h2>
+      <p>Socket CPU memiliki tanda <b class="gold">▲ segitiga emas</b> di pojok kiri bawah. Pilih posisi CPU yang benar:</p>
+      <div class="socket-ref"><div class="socket-sq"><i></i></div><span>Socket</span></div>
+      <p class="hint" id="cpuHint">💡 Petunjuk: segitiga pada CPU harus berada di pojok yang <b>sama</b> dengan segitiga pada socket.</p>
+      <div class="cpu-options" id="cpuOptions"></div>
+      <p class="modal-msg" id="cpuMsg" aria-live="assertive"></p>
+      <button class="btn btn-ghost" id="cpuCancel">Batal</button>
+    </div>
+  </div>
+
+  <!-- ====================== MODAL: HASIL ====================== -->
+  <div class="modal hidden" id="resultModal" role="dialog" aria-modal="true" aria-labelledby="resTitle">
+    <div class="modal-box result-box">
+      <h2 id="resTitle">Hasil Simulasi</h2>
+      <div id="resBody"></div>
+      <img id="resImage" class="res-image" alt="Gambar hasil simulasi">
+      <div class="res-actions">
+        <button class="btn btn-primary" id="btnSaveImg">🖼️ Simpan Gambar</button>
+        <button class="btn btn-secondary" id="btnCopy">📋 Salin Teks</button>
+        <button class="btn btn-secondary hidden" id="btnShare">📤 Bagikan</button>
+      </div>
+      <div class="res-actions">
+        <button class="btn btn-ghost" id="btnAgain">↺ Coba Lagi</button>
+        <button class="btn btn-ghost" id="btnMenu">🏠 Beranda</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====================== MODAL: KONFIRMASI ====================== -->
+  <div class="modal hidden" id="confirmModal" role="dialog" aria-modal="true">
+    <div class="modal-box small">
+      <p id="confirmText"></p>
+      <div class="res-actions">
+        <button class="btn btn-primary" id="confirmYes">Ya</button>
+        <button class="btn btn-ghost" id="confirmNo">Tidak</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="drag-ghost hidden" id="dragGhost"></div>
+
+  <noscript><p class="fatal">Aplikasi ini membutuhkan JavaScript. Aktifkan JavaScript pada browser Anda.</p></noscript>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
