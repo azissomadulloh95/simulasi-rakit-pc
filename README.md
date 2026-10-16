@@ -12,12 +12,30 @@ menyambung kabel daya & front panel, menutup casing, lalu menyalakan PC untuk uj
 
 ## Untuk Siswa
 
+### Memilih platform (generasi processor & RAM)
+Di beranda, pilih platform yang ingin dirakit:
+
+| Platform | Socket | RAM | Contoh CPU |
+|---|---|---|---|
+| Intel Core Gen 4 (Haswell), 2013–2014 | LGA1150 | DDR3 | Core i5-4590 |
+| Intel Core Gen 12–14, 2021–2023 | LGA1700 | DDR4* | Core i5-12400F |
+| Intel Core Ultra 200S, 2024– | LGA1851 | DDR5 | Core Ultra 5 245K |
+| AMD Ryzen 1000–5000, 2017–2022 | AM4 (PGA) | DDR4 | Ryzen 5 5600 |
+| AMD Ryzen 7000–9000, 2022– | AM5 | DDR5 | Ryzen 5 7600 |
+| 🎲 Acak | — | — | dipilih acak (cocok untuk ujian) |
+
+\* LGA1700 ada versi DDR4 dan DDR5; di simulasi ini motherboard B760 versi DDR4.
+
+Saat memasang CPU dan RAM, siswa harus **memilih yang cocok** dengan motherboard
+(socket CPU dan jenis DDR). Pilihan yang salah mengurangi skor dan muncul penjelasannya.
+Bentuk CPU, socket, label chipset, dan tampilan RAM di model 3D ikut menyesuaikan platform.
+
 ### Memilih mode
 | Mode | Keterangan |
 |---|---|
 | **Mode Belajar** | Slot tujuan berkedip hijau sebagai petunjuk, ada penjelasan lengkap dan tips K3 tiap komponen, tanpa batas waktu. |
 | **Mode Ujian** | Isi nama & kelas dulu. Tanpa petunjuk, waktu 15 menit, skor akhir. |
-| **Kenali Komponen** | Galeri 3D: putar & perbesar tiap komponen, baca fungsi, ciri-ciri, dan tips K3. |
+| **Kenali Komponen** | Galeri 3D: putar & perbesar tiap komponen, baca fungsi, ciri-ciri, dan tips K3. Termasuk perbandingan generasi processor dan DDR3/DDR4/DDR5. |
 
 ### Cara memasang komponen
 1. **Ketuk/klik** komponen di daftar (panel kanan, atau panel bawah di HP).
@@ -95,6 +113,22 @@ python -m http.server 8000
 ## Mengubah urutan langkah / menambah komponen
 
 Semua data ada di **`js/components.js`**.
+
+### Menambah platform / generasi baru
+Tambahkan entri di `PLATFORMS` lalu masukkan id-nya ke `PLATFORM_ORDER`:
+
+```js
+intel15: {
+  id: 'intel15', brand: 'Intel', name: 'Intel Core Ultra 300', short: 'Intel Ultra 300', year: '2026', era: 'Terbaru',
+  socket: 'LGA1851', socketType: 'LGA', chipset: 'Z890', ram: 'ddr5', ssd: 'NVMe SSD 1TB',
+  cpu: { model: 'Intel Core Ultra 5 ...', label: 'intel CORE ULTRA 5\\n...', spec: '... core / ... thread', size: [0.375, 0.45] },
+  note: 'Catatan singkat untuk siswa.',
+},
+```
+
+`ram` harus berupa salah satu kunci `RAM_TYPES` (`ddr3`, `ddr4`, `ddr5`). Jenis RAM baru
+cukup ditambahkan ke `RAM_TYPES` dengan data pin, tegangan, kecepatan, dan warna modul.
+Tabel di galeri "Generasi Processor" dan "DDR3 vs DDR4 vs DDR5" dibuat otomatis dari data ini.
 
 ### Mengubah urutan langkah
 Edit array `STEPS`. Setiap langkah berisi `tasks: [[idKomponen, idSlot], ...]`:

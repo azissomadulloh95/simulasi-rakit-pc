@@ -39,6 +39,13 @@
           <p>Pasang komponen satu per satu ke dalam casing, sambungkan kabel daya, lalu nyalakan komputer untuk uji <b>POST</b>. Putar dan perbesar model 3D dengan jari atau mouse.</p>
         </div>
 
+        <section class="platform-box" aria-labelledby="platTitle">
+          <h2 id="platTitle"><span class="num">1</span> Pilih platform komputer</h2>
+          <p>Tiap generasi processor memakai <b>socket</b> dan jenis <b>RAM (DDR3/DDR4/DDR5)</b> yang berbeda. Saat merakit, kamu harus memilih CPU dan RAM yang cocok dengan motherboard.</p>
+          <div class="platform-grid" id="platformGrid" role="radiogroup" aria-label="Platform komputer"></div>
+        </section>
+
+        <h2 class="section-title"><span class="num">2</span> Pilih mode</h2>
         <div class="mode-grid">
           <article class="mode-card learn">
             <div class="mode-icon" aria-hidden="true">📘</div>
@@ -129,6 +136,7 @@
             <div class="stat"><span class="stat-label">Salah</span><span class="stat-val" id="statMistakes">0</span></div>
             <div class="stat"><span class="stat-label" id="timerLabel">Waktu</span><span class="stat-val" id="statTime">00:00</span></div>
           </div>
+          <div class="platform-badge" id="platformBadge"></div>
           <div class="progress" aria-label="Kemajuan"><div class="progress-bar" id="progressBar"></div><span id="progressText">0/15 tugas</span></div>
 
           <details class="steps-box" id="stepsBox" open>
@@ -181,6 +189,18 @@
       <div class="cpu-options" id="cpuOptions"></div>
       <p class="modal-msg" id="cpuMsg" aria-live="assertive"></p>
       <button class="btn btn-ghost" id="cpuCancel">Batal</button>
+    </div>
+  </div>
+
+  <!-- ====================== MODAL: KOMPATIBILITAS ====================== -->
+  <div class="modal hidden" id="choiceModal" role="dialog" aria-modal="true" aria-labelledby="choiceTitle">
+    <div class="modal-box">
+      <h2 id="choiceTitle">Pilih komponen yang cocok</h2>
+      <p id="choiceIntro"></p>
+      <p class="hint" id="choiceHint"></p>
+      <div class="choice-options" id="choiceOptions"></div>
+      <p class="modal-msg" id="choiceMsg" aria-live="assertive"></p>
+      <button class="btn btn-ghost" id="choiceCancel">Batal</button>
     </div>
   </div>
 

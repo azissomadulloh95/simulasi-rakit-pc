@@ -24,7 +24,13 @@ const state = {
   trayOrder: [],
   resultText: '',
   resultBlob: null,
+  platformChoice: 'intel12',
+  platform: C.getPlatform(),
 };
+try {
+  const pc = localStorage.getItem('rakitpc-platform');
+  if (pc && (pc === 'acak' || C.PLATFORMS[pc])) state.platformChoice = pc;
+} catch { /* abaikan */ }
 
 // ---------------------------------------------------------------------
 // Renderer (satu kanvas dipakai bergantian oleh simulasi & galeri)
@@ -78,7 +84,8 @@ simControls.maxPolarAngle = Math.PI * 0.62;
 }
 const caseGroup = C.buildCase();
 simScene.add(caseGroup);
-simScene.add(C.buildMotherboard());
+let mbObj = C.buildMotherboard();
+simScene.add(mbObj);
 const monitor = C.buildMonitor();
 monitor.group.position.set(5.3, 0, 0.2);
 simScene.add(monitor.group);
@@ -379,6 +386,16 @@ function disposeTree(o) {
 
 function startSim(mode) {
   state.mode = mode;
+  const choice = state.platformChoice === 'acak'
+    ? C.PLATFORM_ORDER[Math.floor(Math.random() * C.PLATFORM_ORDER.length)]
+    : state.platformChoice;
+  state.platform = C.setPlatform(choice);
+  simScene.remove(mbObj);
+  disposeTree(mbObj);
+  mbObj = C.buildMotherboard();
+  simScene.add(mbObj);
+  renderPlatformBadge();
+  makeThumbnails(['cpu', 'ram', 'ssd']);
   state.sim = new Simulation(C.STEPS, mode);
   state.selected = null;
   state.busy = false;
@@ -464,7 +481,7 @@ function updateTray() {
   });
 }
 
-async function makeThumbnails() {
+async function makeThumbnails(ids = Object.keys(C.ITEMS)) {
   let r;
   try {
     r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
@@ -475,7 +492,7 @@ async function makeThumbnails() {
   const scene = new THREE.Scene();
   addLights(scene);
   const cam = new THREE.PerspectiveCamera(32, 1, 0.01, 50);
-  for (const id of Object.keys(C.ITEMS)) {
+  for (const id of ids) {
     const obj = C.ITEMS[id].build();
     if (EX_ROT[id]) obj.rotation.set(...EX_ROT[id]);
     const wrap = new THREE.Group();
@@ -694,8 +711,8 @@ async function attempt(itemId, slotId) {
   }
 
   // Benar!
-  if (itemId === 'cpu') {
-    const ok = await askCpuOrientation();
+  if (itemId === 'cpu' || itemId === 'ram') {
+    const ok = (await askCompat(itemId)) && (itemId !== 'cpu' || (await askCpuOrientation()));
     updateHUD();
     if (!ok) return;
   }
@@ -776,6 +793,112 @@ async function animCable(id) {
   await tween(1000, k => run.tubes.forEach(g => g.setDrawRange(0, Math.ceil(k * run.segments) * per)), k => k);
   run.connector.visible = true;
   await tween(300, k => run.connector.position.lerpVectors(cStart, cp, k));
+}
+
+// ---------------------------------------------------------------------
+// Kompatibilitas: pilih CPU (socket) & RAM (DDR) yang cocok
+// ---------------------------------------------------------------------
+function askCompat(kind) {
+  const p = state.platform;
+  const learn = state.mode === 'belajar' && state.hints;
+  const ram = C.RAM_TYPES[p.ram];
+  let options, title, intro, hint;
+  if (kind === 'cpu') {
+    const others = C.PLATFORM_ORDER.filter(id => id !== p.id).map(id => C.PLATFORMS[id]);
+    const same = shuffle(others.filter(o => o.brand === p.brand)).slice(0, 1);
+    const rest = shuffle(others.filter(o => !same.includes(o))).slice(0, 2);
+    options = shuffle([p, ...same, ...rest]).map(o => ({
+      title: o.cpu.model,
+      sub: learn ? `${o.name} • Socket ${o.socket}` : o.cpu.spec,
+      correct: o.id === p.id,
+      log: `CPU tidak cocok: ${o.cpu.model} (${o.socket}) di motherboard ${p.socket}`,
+      wrong: `${o.cpu.model} adalah ${o.name} dengan socket ${o.socket}, sedangkan motherboard ini ber-socket ${p.socket}. Socket berbeda = CPU tidak bisa dipasang, dan pin bisa rusak jika dipaksa.`,
+    }));
+    title = 'Pilih processor yang cocok';
+    intro = `Motherboard ini memakai chipset <b>${p.chipset}</b> dengan socket <b>${p.socket}</b>. Processor mana yang bisa dipasang?`;
+    hint = `💡 Petunjuk: pilih CPU <b>${p.name}</b> yang ber-socket <b>${p.socket}</b>.`;
+  } else {
+    options = shuffle(['ddr3', 'ddr4', 'ddr5']).map(t => {
+      const r = C.RAM_TYPES[t];
+      return {
+        title: r.label,
+        sub: learn ? `${r.pins} • ${r.volt}` : r.pins,
+        correct: t === p.ram,
+        log: `RAM tidak cocok: ${r.name} di motherboard ${ram.name}`,
+        wrong: `Motherboard ${p.chipset} (${p.socket}) ini hanya mendukung ${ram.name}. ${r.name} memiliki posisi takik (notch) berbeda sehingga tidak bisa masuk ke slot — jangan dipaksa!` +
+          (p.id === 'intel12' && t === 'ddr5' ? ' (Memang ada motherboard LGA1700 versi DDR5, tetapi motherboard ini versi DDR4.)' : ''),
+      };
+    });
+    title = 'Pilih RAM yang cocok';
+    intro = `Motherboard: chipset <b>${p.chipset}</b>, socket <b>${p.socket}</b>, slot RAM bertuliskan <b>${ram.name}</b>. RAM mana yang bisa dipasang?`;
+    hint = `💡 Petunjuk: ${esc(ram.note)}`;
+  }
+  return new Promise(resolve => {
+    const modal = $('#choiceModal');
+    const grid = $('#choiceOptions');
+    const msg = $('#choiceMsg');
+    $('#choiceTitle').textContent = title;
+    $('#choiceIntro').innerHTML = intro;
+    $('#choiceHint').innerHTML = hint;
+    $('#choiceHint').classList.toggle('hidden', !learn);
+    msg.textContent = '';
+    msg.className = 'modal-msg';
+    grid.innerHTML = '';
+    options.forEach(o => {
+      const b = document.createElement('button');
+      b.className = 'choice-opt';
+      b.innerHTML = `<b>${esc(o.title)}</b><small>${esc(o.sub)}</small>`;
+      b.onclick = async () => {
+        if (o.correct) {
+          msg.textContent = `✅ Cocok! ${o.title} sesuai dengan motherboard ini.`;
+          msg.className = 'modal-msg ok';
+          $$('.choice-opt', grid).forEach(x => { x.disabled = true; });
+          b.classList.add('right');
+          await wait(800);
+          modal.classList.add('hidden');
+          resolve(true);
+        } else {
+          state.sim.addMistake('kompatibilitas', o.log);
+          errorFeedback();
+          b.classList.add('wrong');
+          b.disabled = true;
+          msg.textContent = `❌ Tidak cocok (−${PENALTY}). ${o.wrong}`;
+          updateHUD();
+        }
+      };
+      grid.appendChild(b);
+    });
+    $('#choiceCancel').onclick = () => { modal.classList.add('hidden'); resolve(false); };
+    modal.classList.remove('hidden');
+  });
+}
+
+function renderPlatformBadge() {
+  const p = state.platform, r = C.RAM_TYPES[p.ram];
+  $('#platformBadge').innerHTML = `<span class="pb-brand ${p.brand.toLowerCase()}">${p.brand}</span>
+    <span><b>${esc(p.name)}</b><br><small>Motherboard ${p.chipset} • Socket ${p.socket} • RAM ${r.name}</small></span>`;
+}
+
+function renderPlatformPicker() {
+  const grid = $('#platformGrid');
+  const cards = C.PLATFORM_ORDER.map(id => {
+    const p = C.PLATFORMS[id], r = C.RAM_TYPES[p.ram];
+    return `<button class="plat-card" role="radio" data-id="${id}">
+      <span class="pb-brand ${p.brand.toLowerCase()}">${p.brand}</span>
+      <b>${esc(p.short)}</b>
+      <small>${p.socket} • ${r.name} • ${p.year}</small>
+      <small class="era">${esc(p.era)}</small>
+    </button>`;
+  });
+  cards.push(`<button class="plat-card" role="radio" data-id="acak"><span class="pb-brand acak">🎲</span><b>Acak</b><small>Platform dipilih secara acak</small><small class="era">Cocok untuk ujian</small></button>`);
+  grid.innerHTML = cards.join('');
+  const sync = () => $$('.plat-card', grid).forEach(b => b.setAttribute('aria-checked', String(b.dataset.id === state.platformChoice)));
+  $$('.plat-card', grid).forEach(b => b.addEventListener('click', () => {
+    state.platformChoice = b.dataset.id;
+    try { localStorage.setItem('rakitpc-platform', b.dataset.id); } catch { /* abaikan */ }
+    sync();
+  }));
+  sync();
 }
 
 // ---------------------------------------------------------------------
@@ -860,8 +983,9 @@ async function powerOnSequence() {
   powerLedMesh.material.emissive.setHex(0x22c55e);
   await tween(1400, k => { fanSpeed = k; });
   setLeds(true);
-  const lines = ['TJKT BIOS v2.1  (C) SMKN 1 Sukabumi', 'CPU   : 6-Core Processor @ 3.6 GHz ... OK', 'RAM   : 16384 MB DDR4 Dual-Channel ... OK',
-    'VGA   : Graphics Card 8GB (PCIe x16) ... OK', 'M.2   : NVMe SSD 512GB ... OK', 'SATA  : HDD 1TB ... OK'];
+  const p = state.platform, rt = C.RAM_TYPES[p.ram];
+  const lines = ['TJKT BIOS v2.1  (C) SMKN 1 Sukabumi', `CPU   : ${p.cpu.model} ... OK`, `RAM   : ${rt.kit} Dual-Ch ... OK`,
+    'VGA   : Graphics Card 8GB (PCIe x16) ... OK', `M.2   : ${p.ssd} ... OK`, 'SATA  : HDD 1TB ... OK'];
   for (let i = 1; i <= lines.length; i++) {
     drawMonitor('boot', lines.slice(0, i));
     await wait(320);
@@ -966,12 +1090,20 @@ function showInfo(item, completedStep) {
   card.innerHTML = `
     <h3>✅ ${item.icon} ${esc(item.name)} terpasang</h3>
     <p><b>Fungsi:</b> ${esc(item.func)}</p>
+    ${specLine(item)}
     <p>${esc(item.detail)}</p>
     <p class="k3"><b>⚠️ Tips K3:</b> ${esc(item.k3)}</p>
     ${next ? `<p><b>🎉 Langkah selesai!</b> Berikutnya: <b>Langkah ${next.no} – ${esc(next.title)}</b></p>` : ''}
     <button class="btn btn-primary" id="btnInfoOk">Mengerti, lanjut</button>`;
   card.classList.remove('hidden');
   $('#btnInfoOk').onclick = hideInfo;
+}
+function specLine(item) {
+  const p = state.platform, r = C.RAM_TYPES[p.ram];
+  if (item === C.ITEMS.cpu) return `<p class="spec">🧩 <b>${esc(p.cpu.model)}</b> • Socket ${p.socket} • ${esc(p.cpu.spec)}<br>${esc(p.note)}</p>`;
+  if (item === C.ITEMS.ram) return `<p class="spec">🧩 <b>${esc(r.kit)}</b> • ${r.pins} • ${r.volt}<br>${esc(r.note)}</p>`;
+  if (item === C.ITEMS.ssd) return `<p class="spec">🧩 <b>${esc(p.ssd)}</b></p>`;
+  return '';
 }
 function hideInfo() { $('#infoCard').classList.add('hidden'); }
 
@@ -1005,6 +1137,11 @@ window.addEventListener('resize', () => { if (state.sim) updateHUD(); });
 // ---------------------------------------------------------------------
 const STATUS = { selesai: 'Selesai – POST OK ✅', 'waktu-habis': 'Waktu habis ⏰', berhenti: 'Dihentikan sebelum selesai' };
 
+function platformText(p) {
+  const sock = p.name.includes(p.socket) ? '' : ` • ${p.socket}`;
+  return `${p.name}${sock} • ${C.RAM_TYPES[p.ram].name}`;
+}
+
 function resultData() {
   const sim = state.sim;
   const score = sim.finalScore();
@@ -1015,6 +1152,7 @@ function resultData() {
     nama: state.mode === 'ujian' ? state.student.nama : (state.student.nama || '-'),
     kelas: state.mode === 'ujian' ? state.student.kelas : (state.student.kelas || '-'),
     mode: state.mode === 'ujian' ? 'Ujian' : 'Belajar',
+    platform: platformText(state.platform),
     tanggal: d.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }) + ' ' + d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
     status: STATUS[sim.result],
     tugas: `${sim.doneCount}/${sim.total}`,
@@ -1043,6 +1181,7 @@ function finishSim(result) {
     <table class="res-table">
       ${state.mode === 'ujian' ? `<tr><td>Nama</td><td><b>${esc(r.nama)}</b></td></tr><tr><td>Kelas</td><td><b>${esc(r.kelas)}</b></td></tr>` : ''}
       <tr><td>Mode</td><td>${r.mode}</td></tr>
+      <tr><td>Platform</td><td>${esc(r.platform)}</td></tr>
       <tr><td>Tanggal</td><td>${esc(r.tanggal)}</td></tr>
       <tr><td>Tugas selesai</td><td>${r.tugas}</td></tr>
       <tr><td>Jumlah kesalahan</td><td>${r.salah} (−${r.salah * PENALTY} poin)</td></tr>
@@ -1071,6 +1210,7 @@ function resultText(r) {
     `Nama      : ${r.nama}`,
     `Kelas     : ${r.kelas}`,
     `Mode      : ${r.mode}`,
+    `Platform  : ${r.platform}`,
     `Tanggal   : ${r.tanggal}`,
     `Status    : ${r.status}`,
     `Skor      : ${r.score}/100 (${r.pred})`,
@@ -1119,13 +1259,13 @@ function makeResultImage(r) {
   g.fillText(r.status.replace(/[✅⏰]/gu, '').trim(), 320, 890);
   g.fillText(`Mode ${r.mode}`, 320, 935);
   // Tabel
-  const rows = [['Nama', r.nama], ['Kelas', r.kelas], ['Tanggal', r.tanggal], ['Tugas selesai', r.tugas], ['Jumlah kesalahan', String(r.salah)], ['Waktu', r.waktu]];
-  let y = 1040;
+  const rows = [['Nama', r.nama], ['Kelas', r.kelas], ['Platform', r.platform], ['Tanggal', r.tanggal], ['Tugas selesai', r.tugas], ['Jumlah kesalahan', String(r.salah)], ['Waktu', r.waktu]];
+  let y = 1010;
   rows.forEach(([k, v]) => {
     g.fillStyle = '#475569'; g.font = '30px "Segoe UI", Arial, sans-serif'; g.fillText(k, 60, y);
     g.fillStyle = '#0f172a'; g.font = 'bold 30px "Segoe UI", Arial, sans-serif'; g.fillText(v, 380, y, W - 440);
     g.strokeStyle = '#cbd5e1'; g.lineWidth = 2; g.beginPath(); g.moveTo(60, y + 16); g.lineTo(W - 60, y + 16); g.stroke();
-    y += 46;
+    y += 40;
   });
   g.fillStyle = '#0f172a'; g.fillRect(0, H - 56, W, 56);
   g.fillStyle = '#cbd5e1'; g.font = '24px "Segoe UI", Arial, sans-serif'; g.textAlign = 'center';
@@ -1206,7 +1346,7 @@ function showExplore(i) {
   const obj = e.build();
   if (EX_ROT[e.id]) obj.rotation.set(...EX_ROT[e.id]);
   (e.labels || []).forEach(l => {
-    const s = C.makeLabel(l.text, { h: 0.16 });
+    const s = C.makeLabel(l.text, { h: l.h ?? 0.16 });
     s.position.set(...l.pos);
     obj.add(s);
   });
@@ -1226,6 +1366,9 @@ function showExplore(i) {
     <p>${esc(e.detail)}</p>
     <h4>Ciri-ciri</h4>
     <ul>${e.features.map(f => `<li>${esc(f)}</li>`).join('')}</ul>
+    ${e.table ? `<h4>Perbandingan</h4><div class="table-wrap"><table class="cmp"><thead><tr>${e.table.head.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead>
+      <tbody>${e.table.rows.map(r => `<tr>${r.map(c => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+      ${e.table.foot ? `<p class="table-foot">${esc(e.table.foot)}</p>` : ''}` : ''}
     <p class="k3"><b>⚠️ Tips K3:</b> ${esc(e.k3)}</p>`;
   resetExCamera();
 }
@@ -1247,6 +1390,7 @@ window.addEventListener('keydown', e => {
 // Inisialisasi
 // ---------------------------------------------------------------------
 renderChips();
+renderPlatformPicker();
 drawMonitor('off');
 $('#simViewport').prepend(canvas);
 resize();

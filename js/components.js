@@ -18,6 +18,61 @@ import * as THREE from 'three';
 export const MB_Z = -0.825;
 
 // ---------------------------------------------------------------------
+// 0. PLATFORM: generasi processor + jenis RAM yang cocok
+//    Tambah platform baru cukup dengan menambah entri di sini
+//    (dan id-nya di PLATFORM_ORDER).
+// ---------------------------------------------------------------------
+export const RAM_TYPES = {
+  ddr3: { id: 'ddr3', name: 'DDR3', year: '2007', pins: '240 pin', volt: '1,5 V (DDR3L 1,35 V)', speed: '1066–2133 MT/s',
+    label: 'DDR3 8GB 1600', kit: '2 × 8 GB DDR3-1600', notch: 0.12, pcb: 0x065f46, hs: null, rgb: null,
+    note: 'Generasi lama, masih banyak di PC lab sekolah. Modul tanpa heatsink, chip memori terlihat jelas.' },
+  ddr4: { id: 'ddr4', name: 'DDR4', year: '2014', pins: '288 pin', volt: '1,2 V', speed: '2133–3600 MT/s',
+    label: 'DDR4 8GB 3200', kit: '2 × 8 GB DDR4-3200', notch: -0.04, pcb: 0x065f46, hs: 0x1e293b, rgb: 0xa855f7,
+    note: 'Paling umum pada PC 2015–2022. Tepi bawah modul sedikit melengkung.' },
+  ddr5: { id: 'ddr5', name: 'DDR5', year: '2021', pins: '288 pin', volt: '1,1 V', speed: '4800–8000 MT/s',
+    label: 'DDR5 16GB 6000', kit: '2 × 16 GB DDR5-6000', notch: 0.03, pcb: 0x0f172a, hs: 0xd1d5db, rgb: 0x22d3ee,
+    note: 'Standar PC terbaru. Punya chip PMIC (pengatur daya) di modul dan 2 sub-channel per keping.' },
+};
+
+export const PLATFORMS = {
+  intel4: {
+    id: 'intel4', brand: 'Intel', name: 'Intel Core Gen 4 (Haswell)', short: 'Intel Gen 4', year: '2013–2014', era: 'PC lama',
+    socket: 'LGA1150', socketType: 'LGA', chipset: 'Z97', ram: 'ddr3', ssd: 'M.2 SATA SSD 256GB',
+    cpu: { model: 'Intel Core i5-4590', label: 'intel CORE i5\n4590', spec: '4 core / 4 thread • 3,3–3,7 GHz', size: [0.375, 0.375] },
+    note: 'Generasi lama yang masih sering ditemui di lab sekolah. Hanya mendukung RAM DDR3.',
+  },
+  intel12: {
+    id: 'intel12', brand: 'Intel', name: 'Intel Core Gen 12–14', short: 'Intel Gen 12–14', year: '2021–2023', era: 'Masih umum',
+    socket: 'LGA1700', socketType: 'LGA', chipset: 'B760', ram: 'ddr4', ssd: 'NVMe SSD 512GB',
+    cpu: { model: 'Intel Core i5-12400F', label: 'intel CORE i5\n12400F', spec: '6 core / 12 thread • 2,5–4,4 GHz', size: [0.375, 0.45] },
+    note: 'Motherboard LGA1700 ada versi DDR4 dan versi DDR5. Motherboard B760 di simulasi ini versi DDR4.',
+  },
+  intelUltra: {
+    id: 'intelUltra', brand: 'Intel', name: 'Intel Core Ultra 200S', short: 'Intel Core Ultra', year: '2024–sekarang', era: 'Terbaru',
+    socket: 'LGA1851', socketType: 'LGA', chipset: 'B860', ram: 'ddr5', ssd: 'NVMe SSD 1TB',
+    cpu: { model: 'Intel Core Ultra 5 245K', label: 'intel CORE ULTRA 5\n245K', spec: '14 core / 14 thread • hingga 5,2 GHz', size: [0.375, 0.45] },
+    note: 'Generasi Intel terbaru untuk desktop. Hanya mendukung RAM DDR5.',
+  },
+  am4: {
+    id: 'am4', brand: 'AMD', name: 'AMD Ryzen 1000–5000 (AM4)', short: 'AMD Ryzen AM4', year: '2017–2022', era: 'Masih umum',
+    socket: 'AM4', socketType: 'PGA', chipset: 'B550', ram: 'ddr4', ssd: 'NVMe SSD 512GB',
+    cpu: { model: 'AMD Ryzen 5 5600', label: 'AMD RYZEN 5\n5600', spec: '6 core / 12 thread • 3,5–4,4 GHz', size: [0.4, 0.4] },
+    note: 'Socket AM4 bertipe PGA: pin ada di CPU, bukan di socket. Hanya mendukung RAM DDR4.',
+  },
+  am5: {
+    id: 'am5', brand: 'AMD', name: 'AMD Ryzen 7000–9000 (AM5)', short: 'AMD Ryzen AM5', year: '2022–sekarang', era: 'Terbaru',
+    socket: 'AM5', socketType: 'LGA', chipset: 'B650', ram: 'ddr5', ssd: 'NVMe SSD 1TB',
+    cpu: { model: 'AMD Ryzen 5 7600', label: 'AMD RYZEN 5\n7600', spec: '6 core / 12 thread • 3,8–5,1 GHz', size: [0.4, 0.4] },
+    note: 'AMD pindah ke socket LGA (pin di socket) pada AM5. Hanya mendukung RAM DDR5.',
+  },
+};
+export const PLATFORM_ORDER = ['intel4', 'intel12', 'intelUltra', 'am4', 'am5'];
+
+let CUR = PLATFORMS.intel12;
+export function setPlatform(id) { CUR = PLATFORMS[id] ?? PLATFORMS.intel12; return CUR; }
+export function getPlatform() { return CUR; }
+
+// ---------------------------------------------------------------------
 // 1. Helper
 // ---------------------------------------------------------------------
 export function mat(color, o = {}) {
@@ -156,16 +211,26 @@ export function makeFan(size, o = {}) {
 // ---------------------------------------------------------------------
 const GOLD = 0xd4a017;
 
-function buildCPU() {
+export function buildCPUFor(p = CUR) {
   const g = new THREE.Group();
-  g.add(box(0.42, 0.42, 0.03, mat(0x166534), 0, 0, 0.015));
-  g.add(box(0.33, 0.33, 0.035, mat(0xcbd5e1, { m: 0.85, r: 0.3 }), 0, 0, 0.047));
-  const d = decal('CPU\n3.6 GHz', 0.28, 0.16, { fg: '#1e293b' });
-  d.position.set(0, 0.02, 0.0655);
+  const [w, h] = p.cpu.size;
+  const amd = p.brand === 'AMD';
+  g.add(box(w, h, 0.03, mat(amd ? 0x14532d : 0x166534), 0, 0, 0.015));
+  const iw = w * (amd ? 0.88 : 0.8), ih = h * (amd ? 0.88 : 0.72);
+  g.add(box(iw, ih, 0.035, mat(0xcbd5e1, { m: 0.85, r: 0.3 }), 0, 0, 0.047));
+  const d = decal(p.cpu.label, iw * 0.92, ih * 0.5, { fg: '#1e293b' });
+  d.position.set(0, 0, 0.0655);
   g.add(d);
-  g.add(triangle(0.08, 0xfacc15, -0.205, -0.205, 0.031));
+  g.add(triangle(0.07, 0xfacc15, -w / 2 + 0.005, -h / 2 + 0.005, 0.031));
+  if (p.socketType === 'PGA') {
+    // PGA: ratusan pin halus di bawah CPU
+    const pins = new THREE.Mesh(new THREE.BoxGeometry(w * 0.9, h * 0.9, 0.02), mat(GOLD, { m: 0.9, r: 0.4 }));
+    pins.position.z = -0.01;
+    g.add(pins);
+  }
   return g;
 }
+const buildCPU = () => buildCPUFor(CUR);
 
 function buildPaste() {
   const g = new THREE.Group();
@@ -211,24 +276,80 @@ function buildCooler() {
   return g;
 }
 
-function buildRAMStick() {
+/** Satu keping RAM berdiri (panjang sepanjang Y, tinggi ke arah Z). */
+function buildRAMStick(type) {
+  const R = RAM_TYPES[type];
   const g = new THREE.Group();
-  g.add(box(0.03, 1.33, 0.3, mat(0x065f46), 0, 0, 0.17));
-  g.add(box(0.032, 1.25, 0.03, mat(GOLD, { m: 0.9, r: 0.3 }), 0, 0, 0.02));
-  g.add(box(0.06, 1.3, 0.25, mat(0x1e293b, { m: 0.6, r: 0.4 }), 0, 0, 0.19));
-  g.add(box(0.062, 1.28, 0.04, ledMat(0xa855f7), 0, 0, 0.33));
-  const d = decal('DDR4 8GB 3200', 1.0, 0.13, { fg: '#e2e8f0' });
+  g.add(box(0.03, 1.33, 0.3, mat(R.pcb), 0, 0, 0.17));
+  // Kaki emas dengan takik (notch) — posisinya beda tiap generasi
+  const L = 1.25, n = R.notch * L, gap = 0.035;
+  const gm = mat(GOLD, { m: 0.9, r: 0.3 });
+  const l1 = (n - gap) + L / 2, l2 = L / 2 - (n + gap);
+  g.add(box(0.032, l1, 0.03, gm, 0, -L / 2 + l1 / 2, 0.02), box(0.032, l2, 0.03, gm, 0, L / 2 - l2 / 2, 0.02));
+  if (R.hs) {
+    g.add(box(0.06, 1.3, 0.25, mat(R.hs, { m: 0.6, r: 0.4 }), 0, 0, 0.19));
+  } else {
+    for (let i = 0; i < 8; i++) g.add(box(0.045, 0.12, 0.1, mat(0x111827), 0, -0.53 + i * 0.152, 0.2));
+  }
+  if (R.rgb) g.add(box(0.062, 1.28, 0.04, ledMat(R.rgb), 0, 0, 0.33));
+  const d = decal(R.label, 1.0, 0.13, { fg: R.hs === 0xd1d5db ? '#0f172a' : '#e2e8f0' });
   d.rotation.y = Math.PI / 2;
-  d.position.set(0.032, 0, 0.19);
+  d.position.set(R.hs ? 0.032 : 0.024, 0, R.hs ? 0.19 : 0.29);
   g.add(d);
   return g;
 }
 
-function buildRAM() {
+export function buildRAMFor(type = CUR.ram) {
   const g = new THREE.Group();
-  const a = buildRAMStick(); a.position.x = -0.12;
-  const b = buildRAMStick(); b.position.x = 0.12;
+  const a = buildRAMStick(type); a.position.x = -0.12;
+  const b = buildRAMStick(type); b.position.x = 0.12;
   g.add(a, b);
+  return g;
+}
+const buildRAM = () => buildRAMFor(CUR.ram);
+
+/** RAM tampak depan (untuk perbandingan DDR3/4/5). */
+function buildRAMFlat(type) {
+  const R = RAM_TYPES[type];
+  const g = new THREE.Group();
+  g.add(box(1.33, 0.3, 0.03, mat(R.pcb)));
+  const L = 1.25, n = R.notch * L, gap = 0.035;
+  const gm = mat(GOLD, { m: 0.9, r: 0.3 });
+  const l1 = (n - gap) + L / 2, l2 = L / 2 - (n + gap);
+  g.add(box(l1, 0.05, 0.032, gm, -L / 2 + l1 / 2, -0.125, 0), box(l2, 0.05, 0.032, gm, L / 2 - l2 / 2, -0.125, 0));
+  if (R.hs) g.add(box(1.3, 0.22, 0.05, mat(R.hs, { m: 0.6, r: 0.4 }), 0, 0.03, 0));
+  else for (let i = 0; i < 8; i++) g.add(box(0.12, 0.1, 0.045, mat(0x111827), -0.53 + i * 0.152, 0.04, 0));
+  if (R.rgb) g.add(box(1.28, 0.04, 0.06, ledMat(R.rgb), 0, 0.15, 0));
+  const d = decal(R.label, 0.9, 0.1, { fg: R.hs === 0xd1d5db ? '#0f172a' : '#e2e8f0' });
+  d.position.set(0, 0.04, R.hs ? 0.026 : 0.024);
+  g.add(d);
+  // penanda posisi takik
+  const mark = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.07, 3), mat(0xef4444));
+  mark.rotation.z = Math.PI;
+  mark.position.set(n, -0.21, 0);
+  g.add(mark);
+  return g;
+}
+
+function buildRAMCompare() {
+  const g = new THREE.Group();
+  ['ddr3', 'ddr4', 'ddr5'].forEach((t, i) => {
+    const s = buildRAMFlat(t);
+    s.position.y = 0.55 - i * 0.55;
+    g.add(s);
+  });
+  return g;
+}
+
+function buildCPULineup() {
+  const g = new THREE.Group();
+  PLATFORM_ORDER.forEach((id, i) => {
+    const c = buildCPUFor(PLATFORMS[id]);
+    const row = i < 3 ? 0 : 1;
+    const col = i < 3 ? i - 1 : (i - 3) - 0.5;
+    c.position.set(col * 0.62, row ? -0.5 : 0.36, 0);
+    g.add(c);
+  });
   return g;
 }
 
@@ -237,7 +358,7 @@ function buildSSD() {
   g.add(box(0.8, 0.22, 0.02, mat(0x0f172a)));
   g.add(box(0.05, 0.2, 0.021, mat(GOLD, { m: 0.9 }), -0.39, 0, 0));
   for (let i = 0; i < 3; i++) g.add(box(0.17, 0.15, 0.02, mat(0x1f2937), -0.2 + i * 0.22, 0, 0.02));
-  const d = decal('NVMe SSD 512GB', 0.6, 0.15, { bg: '#0ea5e9', fg: '#ffffff' });
+  const d = decal(CUR.ssd, 0.6, 0.15, { bg: '#0ea5e9', fg: '#ffffff' });
   d.position.set(0.02, 0, 0.032);
   g.add(d);
   return g;
@@ -370,7 +491,7 @@ export const ITEMS = {
     place: { pos: [-0.95, 3.55, MB_Z + 0.03] },
     func: 'Otak komputer: menjalankan instruksi program dan melakukan semua perhitungan.',
     detail: 'CPU dipasang pada socket di motherboard. Tanda segitiga emas di pojok CPU harus sejajar dengan tanda segitiga pada socket. Letakkan CPU perlahan tanpa ditekan, lalu turunkan tuas pengunci.',
-    features: ['Ada tanda segitiga emas sebagai penanda orientasi', 'Bagian atas berupa pelat logam (IHS)', 'Spesifikasi: kecepatan (GHz), jumlah core & thread'],
+    features: ['Ada tanda segitiga emas sebagai penanda orientasi', 'Socket CPU harus sama dengan socket motherboard (misal LGA1700, AM4, AM5)', 'Merek: Intel (Core i3/i5/i7/i9, Core Ultra) dan AMD (Ryzen 3/5/7/9)', 'Spesifikasi: kecepatan (GHz), jumlah core & thread'],
     k3: 'Pegang CPU di bagian tepinya, jangan sentuh pin/kontak emasnya. Gunakan gelang antistatis.',
     where: 'Processor dipasang di socket CPU — dudukan persegi dengan tuas pengunci di bagian atas motherboard.',
     why: 'CPU dipasang paling awal saat motherboard masih mudah dijangkau.',
@@ -396,11 +517,11 @@ export const ITEMS = {
     why: 'Heatsink dipasang SETELAH thermal paste dioleskan di atas CPU. Tanpa pasta, panas tidak tersalurkan dan CPU bisa overheat.',
   },
   ram: {
-    name: 'RAM DDR4 (2 keping)', icon: '📏', build: buildRAM, install: 'move',
+    name: 'RAM (2 keping)', icon: '📏', build: buildRAM, install: 'move',
     place: { pos: [-0.01, 3.4, MB_Z] },
     func: 'Memori utama yang menyimpan data & program yang sedang berjalan sementara (hilang saat listrik mati).',
     detail: 'Buka pengunci di ujung slot DIMM, sejajarkan takik (notch) RAM dengan sekat slot, lalu tekan kedua ujung hingga pengunci berbunyi "klik". Untuk 2 keping, gunakan slot A2 & B2 agar dual-channel.',
-    features: ['Bentuk batang panjang dengan pin emas di bawah', 'Takik (notch) mencegah salah pasang', 'Kapasitas dalam GB, kecepatan dalam MHz/MT/s'],
+    features: ['Bentuk batang panjang dengan pin emas di bawah', 'Jenis DDR3, DDR4, DDR5 tidak bisa saling tukar — posisi takik (notch) berbeda', 'Jenis RAM harus sesuai yang didukung motherboard', 'Kapasitas dalam GB, kecepatan dalam MT/s'],
     k3: 'Jangan menyentuh pin emas. Pastikan notch sejajar — jangan dipaksa.',
     where: 'RAM dipasang di slot DIMM A2 & B2 (slot ke-2 dan ke-4 dari CPU), di sebelah kanan socket.',
     why: 'RAM dipasang setelah CPU dan pendinginnya agar heatsink yang besar tidak terhalang saat dipasang.',
@@ -613,20 +734,37 @@ export function buildCableRun(id) {
 // ---------------------------------------------------------------------
 // 7. Casing, motherboard, monitor (koordinat dunia)
 // ---------------------------------------------------------------------
-export function buildMotherboard() {
+export function buildMotherboard(p = CUR) {
   const g = new THREE.Group();
   const z0 = MB_Z;
   g.add(box(2.44, 3.05, 0.05, mat(0x1e293b, { r: 0.7 }), -0.75, 2.85, z0 - 0.025));
-  const silk = decal('TJKT B760 • ATX', 1.0, 0.14, { fg: '#94a3b8' });
-  silk.position.set(-1.3, 1.5, z0 + 0.002);
+  const silk = decal(`TJKT ${p.chipset} • ${p.socket} • ATX`, 1.3, 0.14, { fg: '#94a3b8' });
+  silk.position.set(-1.2, 1.5, z0 + 0.002);
   g.add(silk);
-  // Socket CPU
-  g.add(box(0.56, 0.56, 0.03, mat(0x334155), -0.95, 3.55, z0 + 0.015));
-  g.add(box(0.42, 0.42, 0.006, mat(0x8a6d1d, { m: 0.8 }), -0.95, 3.55, z0 + 0.031));
+  // Socket CPU (bentuk mengikuti platform)
+  const [cw, ch] = p.cpu.size;
+  const sw = cw + 0.14, sh = ch + 0.14;
   const frameM = mat(0x9ca3af, { m: 0.85, r: 0.3 });
-  g.add(box(0.56, 0.05, 0.04, frameM, -0.95, 3.82, z0 + 0.035), box(0.56, 0.05, 0.04, frameM, -0.95, 3.28, z0 + 0.035));
-  g.add(box(0.03, 0.5, 0.03, frameM, -0.62, 3.55, z0 + 0.06)); // tuas
-  g.add(triangle(0.09, 0xfacc15, -1.225, 3.275, z0 + 0.036));
+  if (p.socketType === 'PGA') {
+    // AM4: socket putih berlubang + braket pendingin hitam
+    g.add(box(sw, sh, 0.03, mat(0xf1f5f9), -0.95, 3.55, z0 + 0.015));
+    g.add(box(cw * 0.9, ch * 0.9, 0.006, mat(0xcbd5e1), -0.95, 3.55, z0 + 0.031));
+    g.add(box(0.03, sh, 0.04, frameM, -0.95 + sw / 2 + 0.03, 3.55, z0 + 0.04)); // tuas
+    const br = mat(0x111827);
+    g.add(box(0.9, 0.08, 0.06, br, -0.95, 3.55 + sh / 2 + 0.14, z0 + 0.03), box(0.9, 0.08, 0.06, br, -0.95, 3.55 - sh / 2 - 0.14, z0 + 0.03));
+  } else {
+    g.add(box(sw, sh, 0.03, mat(0x334155), -0.95, 3.55, z0 + 0.015));
+    g.add(box(cw, ch, 0.006, mat(0x8a6d1d, { m: 0.8 }), -0.95, 3.55, z0 + 0.031));
+    g.add(box(sw, 0.05, 0.04, frameM, -0.95, 3.55 + sh / 2, z0 + 0.035), box(sw, 0.05, 0.04, frameM, -0.95, 3.55 - sh / 2, z0 + 0.035));
+    g.add(box(0.03, sh - 0.06, 0.03, frameM, -0.95 + sw / 2 + 0.03, 3.55, z0 + 0.06)); // tuas
+  }
+  g.add(triangle(0.08, 0xfacc15, -0.95 - sw / 2 + 0.005, 3.55 - sh / 2 + 0.005, z0 + 0.036));
+  const sl = decal(p.socket, 0.4, 0.07, { fg: '#e2e8f0' });
+  sl.position.set(-0.95, 3.55 - sh / 2 - 0.06, z0 + 0.002);
+  g.add(sl);
+  const dl = decal(RAM_TYPES[p.ram].name, 0.3, 0.08, { fg: '#e2e8f0' });
+  dl.position.set(-0.07, 2.62, z0 + 0.002);
+  g.add(dl);
   // VRM heatsink
   const hs = mat(0x475569, { m: 0.75, r: 0.35 });
   g.add(box(0.25, 0.9, 0.22, hs, -1.55, 3.5, z0 + 0.11));
@@ -776,8 +914,41 @@ const EXTRA = {
   },
 };
 
+EXTRA.cpuGen = {
+  name: 'Generasi Processor', icon: '🧬', build: buildCPULineup,
+  labels: PLATFORM_ORDER.map((id, i) => {
+    const row = i < 3 ? 0 : 1, col = i < 3 ? i - 1 : (i - 3) - 0.5;
+    return { text: PLATFORMS[id].socket, h: 0.09, pos: [col * 0.62, (row ? -0.5 : 0.36) - 0.34, 0.05] };
+  }),
+  func: 'Setiap generasi processor memakai socket tertentu. CPU hanya bisa dipasang pada motherboard dengan socket yang sama.',
+  detail: 'Intel dan AMD terus merilis generasi baru. Saat merakit atau upgrade, cocokkan: socket CPU ↔ socket motherboard, lalu jenis RAM (DDR3/DDR4/DDR5) yang didukung motherboard. Baris atas: Intel, baris bawah: AMD.',
+  features: ['LGA (Land Grid Array): pin ada di socket — Intel & AMD AM5', 'PGA (Pin Grid Array): pin ada di CPU — AMD AM4', 'CPU Intel modern berbentuk persegi panjang, AMD persegi', 'Lihat buku manual / situs produsen untuk daftar CPU yang didukung (CPU support list)'],
+  k3: 'Pin socket LGA dan pin CPU PGA sangat mudah bengkok. Selalu pasang tutup pelindung socket bila motherboard disimpan tanpa CPU.',
+  table: {
+    head: ['Platform', 'Tahun', 'Socket', 'RAM', 'Contoh CPU'],
+    rows: PLATFORM_ORDER.map(id => { const p = PLATFORMS[id]; return [p.name, p.year, `${p.socket} (${p.socketType})`, RAM_TYPES[p.ram].name + (id === 'intel12' ? ' / DDR5*' : ''), p.cpu.model.replace(/^(Intel|AMD) /, '')]; }),
+    foot: '* LGA1700: tergantung motherboard — ada versi DDR4 dan versi DDR5.',
+  },
+};
+EXTRA.ramGen = {
+  name: 'DDR3 vs DDR4 vs DDR5', icon: '🧮', build: buildRAMCompare,
+  labels: ['ddr3', 'ddr4', 'ddr5'].map((t, i) => ({ text: RAM_TYPES[t].name, h: 0.11, pos: [-0.85, 0.5 - i * 0.55, 0.05] })),
+  func: 'Generasi RAM menentukan kecepatan, tegangan, dan kecocokannya dengan motherboard.',
+  detail: 'DDR3, DDR4, dan DDR5 memiliki posisi takik (notch, ditandai segitiga merah) yang berbeda, sehingga RAM yang salah jenis tidak akan masuk ke slot. Jangan pernah memaksa!',
+  features: ['Semakin baru: semakin cepat dan semakin hemat daya', 'DDR4 & DDR5 sama-sama 288 pin, tapi takiknya berbeda', 'DDR5 punya PMIC (pengatur daya) di modul', 'Gunakan sepasang RAM identik untuk dual-channel'],
+  k3: 'Jika RAM tidak masuk, periksa jenis & arah takik — jangan ditekan paksa karena slot bisa patah.',
+  table: {
+    head: ['Jenis', 'Tahun', 'Pin', 'Tegangan', 'Kecepatan'],
+    rows: ['ddr3', 'ddr4', 'ddr5'].map(t => { const r = RAM_TYPES[t]; return [r.name, r.year, r.pins, r.volt, r.speed]; }),
+  },
+};
+
 export const EXPLORE = [
   { id: 'motherboard', ...EXTRA.motherboard },
-  ...['cpu', 'paste', 'cooler', 'ram', 'ssd', 'hdd', 'gpu', 'psu', 'c24', 'c8', 'cpcie', 'csata', 'cfp', 'side'].map(id => ({ id, ...ITEMS[id] })),
+  { id: 'cpu', ...ITEMS.cpu },
+  { id: 'cpuGen', ...EXTRA.cpuGen },
+  ...['paste', 'cooler', 'ram'].map(id => ({ id, ...ITEMS[id] })),
+  { id: 'ramGen', ...EXTRA.ramGen },
+  ...['ssd', 'hdd', 'gpu', 'psu', 'c24', 'c8', 'cpcie', 'csata', 'cfp', 'side'].map(id => ({ id, ...ITEMS[id] })),
   { id: 'case', ...EXTRA.case },
 ];
