@@ -121,7 +121,7 @@ Tambahkan entri di `PLATFORMS` lalu masukkan id-nya ke `PLATFORM_ORDER`:
 intel15: {
   id: 'intel15', brand: 'Intel', name: 'Intel Core Ultra 300', short: 'Intel Ultra 300', year: '2026', era: 'Terbaru',
   socket: 'LGA1851', socketType: 'LGA', chipset: 'Z890', ram: 'ddr5', ssd: 'NVMe SSD 1TB',
-  cpu: { model: 'Intel Core Ultra 5 ...', label: 'intel CORE ULTRA 5\\n...', spec: '... core / ... thread', size: [0.375, 0.45] },
+  cpu: { model: 'Intel Core Ultra 5 ...', label: 'intel CORE ULTRA 5\n...', spec: '... core / ... thread', size: [0.375, 0.45] },
   note: 'Catatan singkat untuk siswa.',
 },
 ```
